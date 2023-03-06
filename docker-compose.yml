@@ -1,0 +1,90 @@
+version: '3'
+services:
+  
+  #PHP Service
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: square.com/php
+    container_name: app
+    restart: unless-stopped
+    tty: true
+    environment:
+      SERVICE_NAME: app
+      SERVICE_TAGS: dev
+    working_dir: /var/www
+    volumes:
+      - ./:/var/www
+      - ./php/local.ini:/usr/local/etc/php/conf.d/local.ini
+    networks:
+      - app-network
+
+  #Nginx Service
+  webserver:
+    image: nginx:alpine
+    container_name: webserver
+    restart: unless-stopped
+    tty: true
+    ports:
+      - "8080:80"
+      - "443:443"
+    volumes:
+      - ./:/var/www
+      - ./nginx/conf.d/:/etc/nginx/conf.d/
+    networks:
+      - app-network
+
+  #MySQL Service
+  db:
+    image: mysql:5.7.22
+    container_name: db
+    restart: unless-stopped
+    tty: true
+    ports:
+      - "3308:3308"
+    environment:
+      MYSQL_DATABASE: square1
+      MYSQL_ROOT_PASSWORD: "${DB_PASSWORD}"
+      SERVICE_TAGS: dev
+      SERVICE_NAME: mysql
+    volumes:
+      - dbdata:/var/lib/mysql/
+      - ./mysql/my.cnf:/etc/mysql/my.cnf
+    networks:
+      - app-network
+
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin:latest
+    container_name: phpmyadmin
+    restart: always
+    ports:
+      # 8080 is the host port and 80 is the docker port
+      - 8081:80
+    environment:
+      - PMA_ARBITRARY:1
+      - PMA_HOST:mysql
+      - MYSQL_USERNAME:"${DB_USERNAME}"
+      - MYSQL_ROOT_PASSWORD:"${DB_PASSWORD}"
+    depends_on:
+      - db
+    networks:
+    # define your network where all containers are connected to each other
+      - app-network
+
+  redis:
+    image: redis:4.0
+    container_name: app_redis
+    ports:
+      - "6382:6379"
+    networks:
+      - app-network
+
+#Docker Networks
+networks:
+  app-network:
+    driver: bridge
+#Volumes
+volumes:
+  dbdata:
+    driver: local
